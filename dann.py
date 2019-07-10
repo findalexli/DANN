@@ -50,15 +50,118 @@ x_tensor_va, y_tensor_va
 
 #need to import data 
 import torch.utils.data
+#Define Batch Size 
+batch_size = 200000
 
 # Dataset 
-#train_loader = torch.utils.data.TensorDataset(X_train_tensor,y_train_tensor)
+train_loader = torch.utils.data.TensorDataset(X_train_tensor,y_train_tensor)
     
 test_dataset = torch.utils.data.TensorDataset(x_tensor_va,y_tensor_va)
 # Data loader
-#train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=False)
+train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=False)
 test_loader = torch.utils.data.DataLoader(dataset=test_dataset, 
                                             batch_size=batch_size, 
                                           shuffle=False)
 
-y_tensor_va = torch.from_numpy(y_va)
+#Defining Dataset from dataloader
+test_dataset = torch.utils.data.TensorDataset(x_tensor_va,y_tensor_va)
+test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
+
+#Constructing the neuralnet from scratch. We added 3 more layers (6 layers in total)
+class NeuralNet(nn.Module):
+    def __init__(self, input_size, hidden_size, num_classes):
+        super(NeuralNet, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size) 
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_size, hidden_size) 
+        self.relu2 = nn.ReLU()
+        self.fc3 = nn.Linear(hidden_size, hidden_size) 
+        self.relu3 = nn.ReLU()
+        self.fc4 = nn.Linear(hidden_size, hidden_size) 
+        self.relu4 = nn.ReLU()
+        self.fc5 = nn.Linear(hidden_size, hidden_size) 
+        self.relu5 = nn.ReLU()
+        self.fc6 = nn.Linear(hidden_size, num_classes) 
+        self.dropout = nn.Dropout(0.1)
+        
+    
+    def forward(self, x):
+        out = self.fc1(x)
+        out = self.relu(out)
+        out = self.dropout(out)
+        out = self.fc2(out)
+        out = self.relu2(out)
+        out = self.dropout(out)
+        out = self.fc3(out)
+        out = self.relu3(out)
+        out = self.dropout(out)
+        out = self.fc4(out)
+        out = self.relu4(out)
+        out = self.dropout(out)
+        out = self.fc5(out)
+        out = self.relu5(out)
+        out = self.dropout(out)
+        out = self.fc6(out)
+        
+        return out
+#Check if cpu is availble, for user's information
+torch.cuda.is_available()
+
+# Device configuration 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# Loading the model 
+
+model = NeuralNet(input_size, hidden_size, num_classes).to(device)
+
+# Loss and optimizer
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) 
+
+# Define the number of epochs
+num_epochs = 10
+# Display the number of epoches
+print ('batch_size = ' + batch_size)
+
+# Train the model
+total_step = len(train_loader)
+for epoch in range(num_epochs):
+    for i, (data, labels) in enumerate(train_loader):  
+        
+        data = data.cuda()
+        labels = labels.cuda()
+        # Forward pass
+        outputs = model(data)
+        loss = criterion(outputs, labels)
+        
+        # Backward and optimize
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        
+        if (i+1) % 10 == 0:
+            print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}' 
+                   .format(epoch+1, num_epochs, i+1, total_step, loss.item()))
+# Let us save the model immediately 
+torch.save(model, 'savedodel.ckpt')
+
+
+torch.load('model2.ckpt')
+
+# Test the model
+# In test phase, we don't need to compute gradients (for memory efficiency)
+with torch.no_grad():
+    correct = 0
+    total = 0
+    for images, labels in test_loader:
+        images = images.to(device)
+        labels = labels.to(device)
+        outputs = model(images)
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+    print('Accuracy of the network on the test set: {} %'.format(100 * correct / total))
+
+# Save the model checkpoint
+torch.save(model.state_dict(), 'model2.ckpt')
+
